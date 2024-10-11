@@ -14,7 +14,7 @@ Install by adding to SetupHelper (need to be installed first)
 
 ### Debugging
 
-The logs can be checked with ```tail -n 100 -F /data/DepthSensor/current | tai64nlocal```
+The logs can be checked with ```tail -n 100 -F /var/log/DepthSensor/current | tai64nlocal```
 
 The service status can be checked with svstat: ```svstat /service/DepthSensor```
 

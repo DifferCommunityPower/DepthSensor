@@ -121,7 +121,7 @@ class DepthSensor:
             else:
                 level = raw_value * self.scaling_factor
                                     # Calculate percentage of tank filled
-                #level_percentage = (level / self.tank_depth) * 100  # in percentage
+                level_percentage = (level / self.tank_depth) * 100  # in percentage
                     
                 # Calculate total and remaining volume
                 total_volume = self.tank_area * self.tank_depth  # in cubic meters
@@ -133,10 +133,13 @@ class DepthSensor:
                     
                     
                 # Prepare JSON output
-                log.warning(f"Level: {level} {current_unit}, Remaining Volume: {remaining_volume_liters:.2f} liters")
+                #log.warning(f"Level: {level} {current_unit}, Remaining Volume: {remaining_volume_liters:.2f} liters")
+                log.warning(f"Level: {level_percentage:.2f}%, Remaining Volume: {remaining_volume_liters:.2f} liters")
 
 
-                return level, remaining_volume_liters, False
+
+                #return level, remaining_volume_liters, False
+                return level_percentage, remaining_volume_liters, False
 
         else:
             log.error("Error reading data from GLT500.")

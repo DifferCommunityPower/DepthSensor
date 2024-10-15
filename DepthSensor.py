@@ -74,7 +74,6 @@ class DepthSensor:
         self.tank_depth = 5.0
         self.tank_area = 1.0
         self.scaling_factor = 0.001
-        self.unit = "Unknown Unit"  # Store the unit here
 
     def connect(self):
         # Connect to the Modbus client
@@ -98,8 +97,8 @@ class DepthSensor:
                     0x000A: "cmH₂O"
                 }
 
-                #current_unit = unit_mapping.get(unit_value, "Unknown Unit")
-                self.unit = unit_mapping.get(unit_value, "Unknown Unit")
+
+                current_unit = unit_mapping.get(unit_value, "Unknown Unit")
 
                 # Read scaling factor
                 scaling_response = self.client.read_holding_registers(0x0003, 1, unit=self.unit_id)
@@ -112,7 +111,7 @@ class DepthSensor:
             return True
         return False
 
-    '''def get_level(self):
+    def get_level(self):
         result = self.client.read_holding_registers(0x0004, 1, unit=self.unit_id)
         err = result.isError()
         if not err:
@@ -141,29 +140,7 @@ class DepthSensor:
 
         else:
             log.error("Error reading data from GLT500.")
-            return -1, -1, True'''
-
-        
-    def get_level(self):
-        result = self.client.read_holding_registers(0x0004, 1, unit=self.unit_id)
-        err = result.isError()
-        if not err:
-            raw_value = result.registers[0]
-            if raw_value == 65534:
-                return None
-            else:
-                # Calculate the raw level with scaling
-                level = raw_value * self.scaling_factor
-
-                # Log the level with its unit
-                log.warning(f"Level: {level:.2f} {self.unit}")
-
-                return level, self.unit, False
-
-        else:
-            log.error("Error reading data from GLT500.")
-            return -1, "Unknown Unit", True
-
+            return -1, -1, True
 
 
 
@@ -216,11 +193,10 @@ class DbusMqttLevelService:
                 writeable=True,
                 onchangecallback=self._handlechangedvalue,
             )
-        self._dbusservice.add_path("/Unit", None)  # Initialize it as None
 
         GLib.timeout_add(5000, self._update)  # pause 1000ms before the next request
 
-    '''def _update(self):
+    def _update(self):
         
         level, remaining, err = self._depthsensor.get_level()
         if err:
@@ -249,34 +225,7 @@ class DbusMqttLevelService:
         if index > 255:  # maximum value of the index
             index = 0  # overflow from 255 to 0
         self._dbusservice["/UpdateIndex"] = index
-        return True'''
-
-        #start
-
-    def _update(self):
-        level, unit, err = self._depthsensor.get_level()
-        if err:
-            return True
-        current = level  # No need for percentage calculation
-
-        if self.last != current:
-            # Update the D-Bus paths with the raw level and unit
-            self._dbusservice["/Level"] = round(level, 3) if level is not None else None
-            self._dbusservice["/Unit"] = unit  # Add a new path for the unit
-
-            log_message = f"Level: {level:.3f} {unit}"
-            log.info(log_message)
-
-            self.last = current
-
-        # Increment UpdateIndex - to show that new data is available
-        index = self._dbusservice["/UpdateIndex"] + 1
-        if index > 255:
-            index = 0
-        self._dbusservice["/UpdateIndex"] = index
         return True
-    
-        #end
 
     def _handlechangedvalue(self, path, value):
         log.debug("someone else updated %s to %s" % (path, value))
@@ -314,18 +263,11 @@ def main():
 
 
 
-    ''' paths_dbus = {
+    paths_dbus = {
         "/Level": {"initial": None, "textformat": _percent},
         "/Remaining": {"initial": None, "textformat": _litres},
         "/UpdateIndex": {"initial": 0, "textformat": _n},
-    }'''
-
-    paths_dbus = {
-    "/Level": {"initial": None, "textformat": _n},  # Use raw value formatter
-    "/Unit": {"initial": None, "textformat": _n},   # Unit will be stored as a string
-    "/UpdateIndex": {"initial": 0, "textformat": _n},
     }
-
 
 
     DbusMqttLevelService(

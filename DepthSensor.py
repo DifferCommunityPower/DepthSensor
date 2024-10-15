@@ -112,7 +112,7 @@ class DepthSensor:
             return True
         return False
 
-   ''' def get_level(self):
+    ''' def get_level(self):
         result = self.client.read_holding_registers(0x0004, 1, unit=self.unit_id)
         err = result.isError()
         if not err:
@@ -314,7 +314,7 @@ def main():
 
 
 
-   ''' paths_dbus = {
+    ''' paths_dbus = {
         "/Level": {"initial": None, "textformat": _percent},
         "/Remaining": {"initial": None, "textformat": _litres},
         "/UpdateIndex": {"initial": 0, "textformat": _n},

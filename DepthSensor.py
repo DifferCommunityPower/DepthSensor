@@ -112,7 +112,7 @@ class DepthSensor:
             return True
         return False
 
-    ''' def get_level(self):
+    '''def get_level(self):
         result = self.client.read_holding_registers(0x0004, 1, unit=self.unit_id)
         err = result.isError()
         if not err:
@@ -144,25 +144,25 @@ class DepthSensor:
             return -1, -1, True'''
 
         
-        def get_level(self):
-            result = self.client.read_holding_registers(0x0004, 1, unit=self.unit_id)
-            err = result.isError()
-            if not err:
-                raw_value = result.registers[0]
-                if raw_value == 65534:
-                    return None
-                else:
-                    # Calculate the raw level with scaling
-                    level = raw_value * self.scaling_factor
-
-                    # Log the level with its unit
-                    log.warning(f"Level: {level:.2f} {self.unit}")
-
-                    return level, self.unit, False
-
+    def get_level(self):
+        result = self.client.read_holding_registers(0x0004, 1, unit=self.unit_id)
+        err = result.isError()
+        if not err:
+            raw_value = result.registers[0]
+            if raw_value == 65534:
+                return None
             else:
-                log.error("Error reading data from GLT500.")
-                return -1, "Unknown Unit", True
+                # Calculate the raw level with scaling
+                level = raw_value * self.scaling_factor
+
+                # Log the level with its unit
+                log.warning(f"Level: {level:.2f} {self.unit}")
+
+                return level, self.unit, False
+
+        else:
+            log.error("Error reading data from GLT500.")
+            return -1, "Unknown Unit", True
 
 
 

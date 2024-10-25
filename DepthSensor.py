@@ -7,7 +7,6 @@ import logging
 import sys
 import os
 from time import sleep
-import glob #new add
 # import configparser  # for config/ini file
 import _thread
 import dbus
@@ -18,9 +17,6 @@ from vedbus import VeDbusService
 
 # formatting
 def _litres(p, v):
-    return str("%.3f" % v) + "L"
-
-def _cubicmeters(p, v):
     return str("%.3f" % v) + "m3"
 
 def _percent(p, v):
@@ -50,7 +46,7 @@ log = logging.getLogger("__name__")
 tank_type = 1
 
 # get capacity Tank #1
-capacity = 55
+capacity = 100
 
 # get standard Tank #1
 standard = 0    
@@ -65,11 +61,9 @@ remaining = None
 
 class DepthSensor:
     def __init__(self):
-        self.port = self.auto_detect_port() 
         self.client = ModbusClient(
             method='rtu',
-            #port='/dev/ttyUSB5',  # linux
-            port=self.port,  # dynamically set port
+            port='/dev/ttyUSB0',  # linux
             baudrate=9600,
             timeout=3,
             parity='N',
@@ -77,28 +71,11 @@ class DepthSensor:
             bytesize=8
         )
         self.unit_id = 1
-        self.tank_depth = 55.0
+        self.tank_depth = 5.0
         self.tank_area = 1.0
-        self.scaling_factor = 0.1
-
-
-    def auto_detect_port(self):
-        # Scans for ttyUSB ports and returns the first found port
-        usb_ports = glob.glob("/dev/ttyUSB*")
-        if usb_ports:
-            log.info(f"Detected Modbus port: {usb_ports[0]}")
-            return usb_ports[0]
-        else:
-            log.error("No Modbus USB ports detected.")
-            return None
+        self.scaling_factor = 0.001
 
     def connect(self):
-        if not self.port:
-            self.port = self.auto_detect_port()
-            if not self.port:
-                log.error("Cannot connect: No available USB ports.")
-                return False
-
         # Connect to the Modbus client
         if self.client.connect():
             log.warning("Connected to Modbus client")
@@ -144,19 +121,19 @@ class DepthSensor:
             else:
                 level = raw_value * self.scaling_factor
                                     # Calculate percentage of tank filled
-                level_percentage = (level)   # in percentage
+                level_percentage = (level / self.tank_depth) * 100  # in percentage
                     
                 # Calculate total and remaining volume
                 total_volume = self.tank_area * self.tank_depth  # in cubic meters
                 current_volume = level * self.tank_area  # in cubic meters
-                remaining_volume = level  # in cubic meters
+                remaining_volume = total_volume - current_volume  # in cubic meters
                     
                 # Convert remaining volume to liters
                 remaining_volume_liters = remaining_volume * 1 #1000  # 1 m³ = 1000 liters
                     
                     
                 # Prepare JSON output
-                log.warning(f"Level: {level:.2f}, Remaining Volume: {remaining_volume_liters:.2f}")
+                log.warning(f"Level: {level_percentage:.2f}%, Remaining Volume: {remaining_volume_liters:.2f} liters")
 
 
                 return level_percentage, remaining_volume_liters, False
@@ -296,7 +273,7 @@ def main():
     DbusMqttLevelService(
         servicename="com.victronenergy.tank.well_1",
         deviceinstance=1,
-        customname="Well",
+        customname="Well1",
         paths=paths_dbus,
         depthsensor=depthsensor,
     )

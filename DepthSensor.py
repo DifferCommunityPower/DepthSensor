@@ -43,10 +43,10 @@ log = logging.getLogger("__name__")
 
 
 # get type Tank #1
-tank_type = 1
+tank_type = 0
 
 # get capacity Tank #1
-capacity = 100
+capacity = 53
 
 # get standard Tank #1
 standard = 0    
@@ -71,9 +71,9 @@ class DepthSensor:
             bytesize=8
         )
         self.unit_id = 1
-        self.tank_depth = 5.0
+        self.tank_depth = 55.0
         self.tank_area = 1.0
-        self.scaling_factor = 0.001
+        self.scaling_factor = 0.1
 
     def connect(self):
         # Connect to the Modbus client
@@ -121,15 +121,17 @@ class DepthSensor:
             else:
                 level = raw_value * self.scaling_factor
                                     # Calculate percentage of tank filled
-                level_percentage = (level / self.tank_depth) * 100  # in percentage
-                    
+                level_percentage = level #in percentage
+                            # Check if the level exceeds the maximum threshold (53 in this case)
+
+                
                 # Calculate total and remaining volume
                 total_volume = self.tank_area * self.tank_depth  # in cubic meters
-                current_volume = level * self.tank_area  # in cubic meters
-                remaining_volume = total_volume - current_volume  # in cubic meters
+                current_volume = level 
+                remaining_volume = level # in cubic meters
                     
                 # Convert remaining volume to liters
-                remaining_volume_liters = remaining_volume * 1 #1000  # 1 m³ = 1000 liters
+                remaining_volume_liters = level # 1 m³ = 1000 liters
                     
                     
                 # Prepare JSON output
@@ -201,6 +203,12 @@ class DbusMqttLevelService:
         level, remaining, err = self._depthsensor.get_level()
         if err:
             return True
+
+            # Check for erroneous level reading
+        if level == 100:
+            log.warning("Erroneous level value detected: 100. Data not sent to VRM.")
+            return True  # Skip sending this data to VRM  
+           
         current = level + remaining
 
         if self.last != current:
@@ -273,7 +281,7 @@ def main():
     DbusMqttLevelService(
         servicename="com.victronenergy.tank.well_1",
         deviceinstance=1,
-        customname="Well1",
+        customname="Well",
         paths=paths_dbus,
         depthsensor=depthsensor,
     )

@@ -207,7 +207,8 @@ class DbusMqttLevelService:
             # Check for erroneous level reading
         if level == 100:
             log.warning("Erroneous level value detected: 100. Data not sent to VRM.")
-            return True  # Skip sending this data to VRM     
+            return True  # Skip sending this data to VRM  
+           
         current = level + remaining
 
         if self.last != current:

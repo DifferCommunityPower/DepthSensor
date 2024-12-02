@@ -11,12 +11,26 @@ The script reads sensor data from a Gamicos GLT500 depth sensor (https://www.gam
 ### Install
 
 Install by adding to SetupHelper (need to be installed first)
+The install will disable the autostart of serial-starter, to make sure Venus does not block this driver
+
+In:
+/etc/udev/rules.d/serial-starter.rules
+replace the line starting with
+ACTION=="add", ENV{ID_BUS}=="usb", ENV{ID_MODEL}=="FT232R_USB_UART"
+with 
+ACTION=="add", ENV{ID_BUS}=="usb", ENV{ID_MODEL}=="FT232R_USB_UART",            ENV{VE_SERVICE}="ignore"
 
 ### Debugging
 
-The logs can be checked with ```tail -n 100 -F /var/log/DepthSensor/current | tai64nlocal```
+The logs can be checked with 
+```
+tail -n 100 -F /var/log/DepthSensor/current | tai64nlocal
+```
 
-The service status can be checked with svstat: ```svstat /service/DepthSensor```
+The service status can be checked with svstat: 
+```
+svstat /service/DepthSensor
+```
 
 This will output somethink like ```/service/DepthSensor: up (pid 5845) 185 seconds```
 

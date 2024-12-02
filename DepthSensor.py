@@ -7,23 +7,18 @@ import logging
 import sys
 import os
 from time import sleep
-# import configparser  # for config/ini file
+import glob #new add
 import _thread
 import dbus
+from pymodbus.constants import Defaults
+from utils import *
+
+Defaults.Timeout = 5
 
 # import Victron Energy packages
 sys.path.insert(1, "/data/SetupHelper/velib_python")
 from vedbus import VeDbusService
 
-# formatting
-def _litres(p, v):
-    return str("%.3f" % v) + "m3"
-
-def _percent(p, v):
-    return str("%.1f" % v) + "%"
-
-def _n(p, v):
-    return str("%i" % v)
 
 class SystemBus(dbus.bus.BusConnection):
     def __new__(cls):
@@ -39,17 +34,7 @@ def dbusconnection():
 
 logging.basicConfig(level=logging.INFO)
 
-log = logging.getLogger("__name__")
-
-
-# get type Tank #1
-tank_type = 0
-
-# get capacity Tank #1
-capacity = 53
-
-# get standard Tank #1
-standard = 0    
+log = logging.getLogger(__name__)
 
 
 # set variables
@@ -57,95 +42,61 @@ connected = 0
 level = -999
 remaining = None
 
-
-
 class DepthSensor:
     def __init__(self):
+        self.unit_id = 1
+        self.scaling_factor = 0.1
+        self.version = getVersion()
+        self.connect()
+
+    def scaling(self):
+        unit_response = self.client.read_holding_registers(0x0002, 1, unit=self.unit_id)
+
+        if not unit_response.isError():
+            unit_value = unit_response.registers[0]
+            current_unit = UNIT_MAPPING.get(unit_value, "Unknown Unit")
+
+            # Read scaling factor
+            scaling_response = self.client.read_holding_registers(0x0003, 1, unit=self.unit_id)
+            if not scaling_response.isError():
+                scaling_value = scaling_response.registers[0]
+                scaling_factors = {0x0000: 1, 0x0001: 0.1, 0x0002: 0.01, 0x0003: 0.001}
+                self.scaling_factor = scaling_factors.get(scaling_value, 1)
+                return True
+        else:
+            log.error("Error reading unit value")
+        return False
+
+    def connect(self):
         self.client = ModbusClient(
             method='rtu',
-            port='/dev/ttyUSB0',  # linux
+            port=PORT,
             baudrate=9600,
             timeout=3,
             parity='N',
             stopbits=1,
             bytesize=8
         )
-        self.unit_id = 1
-        self.tank_depth = 55.0
-        self.tank_area = 1.0
-        self.scaling_factor = 0.1
-
-    def connect(self):
-        # Connect to the Modbus client
         if self.client.connect():
-            log.warning("Connected to Modbus client")
-            unit_response = self.client.read_holding_registers(0x0002, 1, unit=self.unit_id)
-
-            if not unit_response.isError():
-                unit_value = unit_response.registers[0]
-                unit_mapping = {
-                    0x0000: "MPa",
-                    0x0001: "kPa",
-                    0x0002: "Pa",
-                    0x0003: "bar",
-                    0x0004: "mbar",
-                    0x0005: "kg/cm²",
-                    0x0006: "psi",
-                    0x0007: "mH₂O",
-                    0x0008: "mmH₂O",
-                    0x0009: "°C",
-                    0x000A: "cmH₂O"
-                }
-
-
-                current_unit = unit_mapping.get(unit_value, "Unknown Unit")
-
-                # Read scaling factor
-                scaling_response = self.client.read_holding_registers(0x0003, 1, unit=self.unit_id)
-                if not scaling_response.isError():
-                    scaling_value = scaling_response.registers[0]
-                    scaling_factors = {0x0000: 1, 0x0001: 0.1, 0x0002: 0.01, 0x0003: 0.001}
-                    self.scaling_factor = scaling_factors.get(scaling_value, 1)
+            if self.scaling():
+                log.info(f"Connected to Modbus port: {PORT}")
+                return True
             else:
-                log.error("Error reading unit value")
-            return True
+                log.warning(f"Scaling failed, device not likely a Depthsensor")
+        else:
+            log.error("connect failed")
         return False
 
     def get_level(self):
         result = self.client.read_holding_registers(0x0004, 1, unit=self.unit_id)
-        err = result.isError()
+        err, level = result.isError(), -1
         if not err:
             raw_value = result.registers[0]
-            if raw_value == 65534:
-                return None
-            else:
-                level = raw_value * self.scaling_factor
-                                    # Calculate percentage of tank filled
-                level_percentage = level #in percentage
-                            # Check if the level exceeds the maximum threshold (53 in this case)
-
-                
-                # Calculate total and remaining volume
-                total_volume = self.tank_area * self.tank_depth  # in cubic meters
-                current_volume = level 
-                remaining_volume = level # in cubic meters
-                    
-                # Convert remaining volume to liters
-                remaining_volume_liters = level # 1 m³ = 1000 liters
-                    
-                    
-                # Prepare JSON output
-                log.warning(f"Level: {level_percentage:.2f}%, Remaining Volume: {remaining_volume_liters:.2f} liters")
-
-
-                return level_percentage, remaining_volume_liters, False
-
+            level = raw_value * self.scaling_factor
+            log.info(f"Level: {level:.2f}m")
         else:
             log.error("Error reading data from GLT500.")
-            return -1, -1, True
-
-
-
+        return level, err
 
 class DbusMqttLevelService:
     def __init__(
@@ -160,7 +111,7 @@ class DbusMqttLevelService:
         self._depthsensor = depthsensor 
         self._dbusservice = VeDbusService(servicename,dbusconnection())
         self._paths = paths
-        self.last = -2
+        self.last = -1
 
         logging.info("Starting DepthSensor Service")
         logging.debug("%s /DeviceInstance = %d" % (servicename, deviceinstance))
@@ -178,14 +129,12 @@ class DbusMqttLevelService:
         self._dbusservice.add_path("/ProductId", 0xFFFF)
         self._dbusservice.add_path("/ProductName", productname)
         self._dbusservice.add_path("/CustomName", customname)
-        self._dbusservice.add_path("/FirmwareVersion", "0.0.1 (20241010)")
-        # self._dbusservice.add_path('/HardwareVersion', '')
+        self._dbusservice.add_path("/FirmwareVersion", self._depthsensor.version)
         self._dbusservice.add_path("/Connected", 1)
-
         self._dbusservice.add_path("/Status", 0)
-        self._dbusservice.add_path("/FluidType", tank_type)
-        self._dbusservice.add_path("/Capacity", capacity)
-        self._dbusservice.add_path("/Standard", standard)
+        self._dbusservice.add_path("/FluidType", TANK_TYPE)
+        self._dbusservice.add_path("/Capacity", TANK_CAPACITY)
+        self._dbusservice.add_path("/Standard", TANK_STANDARD)
 
         for path, settings in self._paths.items():
             self._dbusservice.add_path(
@@ -196,36 +145,19 @@ class DbusMqttLevelService:
                 onchangecallback=self._handlechangedvalue,
             )
 
-        GLib.timeout_add(5000, self._update)  # pause 1000ms before the next request
+        GLib.timeout_add(SAMPLE_INTERVAL * 1000, self._update)  # pause 1000 x SAMPLE_INTERVAL ms before the next request
 
     def _update(self):
         
-        level, remaining, err = self._depthsensor.get_level()
+        level, err = self._depthsensor.get_level()
         if err:
             return True
-
-            # Check for erroneous level reading
-        if level == 100:
-            log.warning("Erroneous level value detected: 100. Data not sent to VRM.")
-            return True  # Skip sending this data to VRM  
            
-        current = level + remaining
-
-        if self.last != current:
-            self._dbusservice["/Level"] = (
-                round(level, 1) if level is not None else None
-            )
-            self._dbusservice["/Remaining"] = (
-                round(remaining, 3) if remaining is not None else None
-            )
-
-            log_message = "Level: {:.1f} %".format(level)
-            log_message += (
-                " - Remaining: {:.1f} m3".format(remaining) if remaining is not None else ""
-            )
-            log.info(log_message)
-
-            self.last = current
+        if self.last != level:
+            self._dbusservice["/Level"] = round(level, 2) if level else None
+            self._dbusservice["/Remaining"] = round(level, 3) if level else None
+            self.last = level
+            log.info("Updated level: {:.1f} m".format(level))
 
 
         # increment UpdateIndex - to show that new data is available
@@ -236,7 +168,7 @@ class DbusMqttLevelService:
         return True
 
     def _handlechangedvalue(self, path, value):
-        log.debug("someone else updated %s to %s" % (path, value))
+        log.warning("someone else updated %s to %s" % (path, value))
         return True  # accept the change
     
 def main():
@@ -250,8 +182,6 @@ def main():
     # Have a mainloop, so we can send/receive asynchronous calls to and from dbus
     DBusGMainLoop(set_as_default=True)
 
-    
-
     # wait to receive first data, else the JSON is empty and phase setup won't work
     i = 0
     depthsensor= DepthSensor()
@@ -261,7 +191,7 @@ def main():
         if connected:
             level, remaining, err = depthsensor.get_level()
         if i % 12 != 0 or i == 0:
-            log.info("Waiting 5 seconds for receiving first data...")
+            log.error("Waiting 5 seconds for receiving first data...")
         else:
             log.warning(
                 "Waiting since %s seconds for receiving first data..." % str(i * 5)
@@ -269,12 +199,10 @@ def main():
         sleep(5)
         i += 1
 
-
-
     paths_dbus = {
-        "/Level": {"initial": None, "textformat": _percent},
-        "/Remaining": {"initial": None, "textformat": _litres},
-        "/UpdateIndex": {"initial": 0, "textformat": _n},
+        "/Level": {"initial": None, "textformat": format_percent},
+        "/Remaining": {"initial": None, "textformat": format_litres},
+        "/UpdateIndex": {"initial": 0, "textformat": format_n},
     }
 
 
@@ -285,12 +213,8 @@ def main():
         paths=paths_dbus,
         depthsensor=depthsensor,
     )
-
-
     
-    log.info(
-        "Connected to dbus and switching over to GLib.MainLoop() (= event based)"
-    )
+    log.error("Connected to dbus and switching over to GLib.MainLoop() (= event based)" )
     mainloop = GLib.MainLoop()
     mainloop.run()
 

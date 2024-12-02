@@ -153,11 +153,11 @@ class DbusMqttLevelService:
         if err:
             return True
            
-        if self.last != level:
+        if round(self.last, 2) != round(level, 2):
             self._dbusservice["/Level"] = round(level, 2) if level else None
             self._dbusservice["/Remaining"] = round(level, 3) if level else None
             self.last = level
-            log.info("Updated level: {:.1f} m".format(level))
+            log.info("Updated level: {:.2f} m".format(level))
 
 
         # increment UpdateIndex - to show that new data is available

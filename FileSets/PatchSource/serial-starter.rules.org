@@ -2,7 +2,7 @@ ACTION=="add", SUBSYSTEM=="tty", SUBSYSTEMS=="platform|usb-serial", SYMLINK+="se
 ACTION=="remove", SUBSYSTEM=="tty", SUBSYSTEMS=="platform|usb-serial", RUN+="/opt/victronenergy/serial-starter/cleanup.sh %k"
 
 # The VE USB RS485 has a FT232R, but that chip can also rs232 etc, so also check default
-ACTION=="add", ENV{ID_BUS}=="usb", ENV{ID_MODEL}=="FT232R_USB_UART",            ENV{VE_SERVICE}="ignore"
+ACTION=="add", ENV{ID_BUS}=="usb", ENV{ID_MODEL}=="FT232R_USB_UART",            ENV{VE_SERVICE}="rs485:default"
 # Older versions have specific id_model so that is rs485 for sure
 ACTION=="add", ENV{ID_BUS}=="usb", ENV{ID_MODEL}=="USB-RS485_Cable",            ENV{VE_SERVICE}="rs485"
 # Isolated rs485

@@ -3,7 +3,7 @@
 This repo is very much work in progress, and is open source primarily to be installable with SetupHelper
 
 ### Disclaimer
-I'm not responsible for the usage of this script. Use on own risk! 
+We're not responsible for the usage of this script. Use on own risk! 
 
 ### Purpose
 The script reads sensor data from a Gamicos GLT500 depth sensor (https://www.gamicos.com/Products/GLT500-Pressure-Level-Sensor) connected to a Cerbo over RS485, and publishes the information on the dbus as the service com.victronenergy.tank.dcp_tank_level
@@ -11,14 +11,9 @@ The script reads sensor data from a Gamicos GLT500 depth sensor (https://www.gam
 ### Install
 
 Install by adding to SetupHelper (need to be installed first)
-The install will disable the autostart of serial-starter, to make sure Venus does not block this driver
+The install will disable the autostart of serial-starter, to make sure Venus does not block this driver.
+Disabling is done automatically using SetupHelers install process (file to be updated in FileSets)
 
-In:
-/etc/udev/rules.d/serial-starter.rules
-replace the line starting with
-ACTION=="add", ENV{ID_BUS}=="usb", ENV{ID_MODEL}=="FT232R_USB_UART"
-with 
-ACTION=="add", ENV{ID_BUS}=="usb", ENV{ID_MODEL}=="FT232R_USB_UART",            ENV{VE_SERVICE}="ignore"
 
 ### Debugging
 

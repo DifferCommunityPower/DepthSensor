@@ -19,7 +19,7 @@ UNIT_MAPPING = {
     0x000A: "cmH₂O"
 }
 PORT = "/dev/ttyUSB0"
-SAMPLE_INTERVAL = 5
+SAMPLE_INTERVAL = 30
 
 def getVersion() -> str:
     filename = os.path.join(os.path.abspath(os.path.dirname(__file__)),"version")

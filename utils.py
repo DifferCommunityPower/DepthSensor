@@ -1,4 +1,14 @@
 import os
+import serial.tools.list_ports
+
+def find_port(manufacturer:str = 'FTDI'):
+    ports = serial.tools.list_ports.comports()
+    for port in ports:
+        if manufacturer in port.manufacturer:
+            return port.device
+    return None
+
+
 
 # Tank constants
 TANK_TYPE = 1
@@ -18,7 +28,7 @@ UNIT_MAPPING = {
     0x0009: "°C",
     0x000A: "cmH₂O"
 }
-PORT = "/dev/ttyUSB0"
+
 SAMPLE_INTERVAL = 30
 
 def getVersion() -> str:

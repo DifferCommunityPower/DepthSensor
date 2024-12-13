@@ -68,9 +68,13 @@ class DepthSensor:
         return False
 
     def connect(self):
+        port = find_port("FTDI")
+        if not port:
+            log.error("No FTDI device found.")
+            return False
         self.client = ModbusClient(
             method='rtu',
-            port=PORT,
+            port=port,
             baudrate=9600,
             timeout=3,
             parity='N',
@@ -79,7 +83,7 @@ class DepthSensor:
         )
         if self.client.connect():
             if self.scaling():
-                log.info(f"Connected to Modbus port: {PORT}")
+                log.info(f"Connected to Modbus port: {port}")
                 return True
             else:
                 log.warning(f"Scaling failed, device not likely a Depthsensor")

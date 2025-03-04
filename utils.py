@@ -29,7 +29,7 @@ UNIT_MAPPING = {
     0x000A: "cmH₂O"
 }
 
-SAMPLE_INTERVAL = 60
+SAMPLE_INTERVAL = 120
 
 def getVersion() -> str:
     filename = os.path.join(os.path.abspath(os.path.dirname(__file__)),"version")

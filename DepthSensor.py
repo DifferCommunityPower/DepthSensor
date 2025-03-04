@@ -76,7 +76,7 @@ class DepthSensor:
             method='rtu',
             port=port,
             baudrate=9600,
-            timeout=3,
+            timeout=5,
             parity='N',
             stopbits=1,
             bytesize=8

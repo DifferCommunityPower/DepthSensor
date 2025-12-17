@@ -4,7 +4,7 @@ import serial.tools.list_ports
 def find_port(manufacturer:str = 'FTDI'):
     ports = serial.tools.list_ports.comports()
     for port in ports:
-        if manufacturer in port.manufacturer:
+        if port.manufacturer and manufacturer in port.manufacturer:
             return port.device
     return None
 

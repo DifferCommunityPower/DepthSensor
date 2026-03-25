@@ -6,12 +6,14 @@ import platform
 import logging
 import sys
 import os
-from time import sleep
-import glob #new add
-import _thread
+from time import sleep, time
 import dbus
 from pymodbus.constants import Defaults
-from utils import *
+from utils import (
+    find_port, getVersion, UNIT_MAPPING, MAX_LEVEL,
+    TANK_TYPE, TANK_CAPACITY, TANK_STANDARD, SAMPLE_INTERVAL,
+    format_percent, format_litres, format_n,
+)
 
 Defaults.Timeout = 5
 
@@ -32,7 +34,7 @@ def dbusconnection():
     return SessionBus() if 'DBUS_SESSION_BUS_ADDRESS' in os.environ else SystemBus()
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s:%(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 
 log = logging.getLogger(__name__)
 
@@ -42,11 +44,15 @@ connected = 0
 level = -999
 remaining = None
 
+MAX_CONSECUTIVE_ERRORS = 3
+
 class DepthSensor:
     def __init__(self):
         self.unit_id = 1
         self.scaling_factor = 0.1
         self.version = getVersion()
+        self.error_count = 0
+        self.last_reconnect = 0
         self.connect()
 
     def scaling(self):
@@ -54,7 +60,6 @@ class DepthSensor:
 
         if not unit_response.isError():
             unit_value = unit_response.registers[0]
-            current_unit = UNIT_MAPPING.get(unit_value, "Unknown Unit")
 
             # Read scaling factor
             scaling_response = self.client.read_holding_registers(0x0003, 1, unit=self.unit_id)
@@ -62,6 +67,7 @@ class DepthSensor:
                 scaling_value = scaling_response.registers[0]
                 scaling_factors = {0x0000: 1, 0x0001: 0.1, 0x0002: 0.01, 0x0003: 0.001}
                 self.scaling_factor = scaling_factors.get(scaling_value, 1)
+                log.info(f"Unit value: {unit_value}, Scaling factor: {self.scaling_factor}")
                 return True
         else:
             log.error("Error reading unit value")
@@ -91,15 +97,41 @@ class DepthSensor:
             log.error("connect failed")
         return False
 
+    def reconnect(self):
+        now = time()
+        if now - self.last_reconnect < 60:
+            log.info("Skipping reconnect, last attempt was less than 60s ago")
+            return False
+        self.last_reconnect = now
+        log.warning("Attempting to reconnect to GLT500...")
+        try:
+            self.client.close()
+        except Exception:
+            pass
+        if self.connect():
+            log.info("Reconnected to GLT500 successfully")
+            return True
+        log.error("Reconnect to GLT500 failed")
+        return False
+
     def get_level(self):
         result = self.client.read_holding_registers(0x0004, 1, unit=self.unit_id)
         err, level = result.isError(), -1
         if not err:
             raw_value = result.registers[0]
             level = raw_value * self.scaling_factor
+            if level > MAX_LEVEL:
+                log.warning(f"Ignoring invalid reading: {level:.2f}m (exceeds {MAX_LEVEL}m)")
+                return -1, True
             log.info(f"Level: {level:.2f}m")
+            self.error_count = 0
         else:
-            log.error("Error reading data from GLT500.")
+            self.error_count += 1
+            log.error(f"Error reading data from GLT500. Code: {result}")
+            if self.error_count >= MAX_CONSECUTIVE_ERRORS:
+                log.warning(f"{self.error_count} consecutive read failures, reconnecting")
+                self.reconnect()
+                self.error_count = 0
         return level, err
 
 class DbusMqttLevelService:
@@ -149,7 +181,7 @@ class DbusMqttLevelService:
                 onchangecallback=self._handlechangedvalue,
             )
 
-        GLib.timeout_add(SAMPLE_INTERVAL * 1000, self._update)  # pause 1000 x SAMPLE_INTERVAL ms before the next request
+        GLib.timeout_add(SAMPLE_INTERVAL * 1000, self._update)
 
     def _update(self):
         
@@ -177,8 +209,6 @@ class DbusMqttLevelService:
     
 def main():
     global level, remaining
-    _thread.daemon = True  # allow the program to quit
-
     from dbus.mainloop.glib import (  # pyright: ignore[reportMissingImports]
         DBusGMainLoop,
     )
@@ -218,7 +248,7 @@ def main():
         depthsensor=depthsensor,
     )
     
-    log.error("Connected to dbus and switching over to GLib.MainLoop() (= event based)" )
+    log.info("Connected to dbus and switching over to GLib.MainLoop() (= event based)" )
     mainloop = GLib.MainLoop()
     mainloop.run()
 

@@ -13,7 +13,8 @@ def find_port(manufacturer:str = 'FTDI'):
 # Tank constants
 TANK_TYPE = 1
 TANK_CAPACITY = 100
-TANK_STANDARD = 0    
+TANK_STANDARD = 0
+MAX_LEVEL = 100  # maximum valid level in meters
 
 UNIT_MAPPING = {
     0x0000: "MPa",
